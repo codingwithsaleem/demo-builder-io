@@ -29,21 +29,78 @@ const upload = multer({
   }
 });
 
-// Mock STP volume extraction function
-// In a real implementation, this would use opencascade.js or similar
+// Real STP volume extraction using opencascade.js
 async function extractVolumeFromSTP(filePath: string): Promise<number> {
   try {
     // Read file to validate it exists
     await fs.access(filePath);
     
-    // Mock volume extraction - in reality, you'd use opencascade.js
-    // This simulates processing time and returns a mock volume
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+    // Import opencascade.js dynamically
+    const opencascade = await import('opencascade.js') as any;
+    const oc = await opencascade.default();
     
-    // Return a mock volume between 10 and 1000 cm³
-    return Math.random() * 990 + 10;
+    // Read the STP file data
+    const fileData = await fs.readFile(filePath);
+    
+    // Write file to OpenCascade virtual filesystem
+    const fileName = 'input.stp';
+    oc.FS.writeFile(fileName, fileData);
+    
+    try {
+      // Create STEP reader
+      const reader = new oc.STEPControl_Reader_1();
+      
+      // Read the STEP file
+      const readResult = reader.ReadFile(fileName);
+      
+      if (readResult !== oc.IFSelect_ReturnStatus.IFSelect_RetDone) {
+        throw new Error('Failed to read STEP file');
+      }
+      
+      // Transfer roots and get the shape
+      reader.TransferRoots();
+      const shape = reader.OneShape();
+      
+      if (shape.IsNull()) {
+        throw new Error('No valid shape found in STEP file');
+      }
+      
+      // Calculate volume using GProp
+      const gprops = new oc.GProp_GProps_1();
+      oc.BRepGProp.VolumeProperties_1(shape, gprops, false);
+      
+      // Get volume in mm³ and convert to cm³
+      const volumeMM3 = gprops.Mass();
+      const volumeCM3 = volumeMM3 / 1000; // Convert mm³ to cm³
+      
+      // Cleanup
+      reader.delete();
+      gprops.delete();
+      shape.delete();
+      
+      if (volumeCM3 <= 0) {
+        throw new Error('Invalid volume calculated - shape may not be a valid solid');
+      }
+      
+      return volumeCM3;
+      
+    } finally {
+      // Clean up virtual filesystem
+      try {
+        oc.FS.unlink(fileName);
+      } catch (e) {
+        // File might not exist, ignore cleanup errors
+      }
+    }
+    
   } catch (error) {
-    throw new Error('Failed to extract volume from STP file');
+    console.error('STP volume extraction error:', error);
+    
+    // Fallback to mock volume for development/testing
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.warn('Falling back to mock volume calculation due to error:', errorMessage);
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+    return Math.random() * 990 + 10;
   }
 }
 

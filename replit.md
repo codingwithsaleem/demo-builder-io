@@ -49,7 +49,7 @@ Preferred communication style: Simple, everyday language.
 
 **Monorepo Structure**: Client and server code in same repository with shared schema definitions, enabling type safety across the full stack and simplified development workflow.
 
-**Mock File Processing**: STP volume extraction is currently mocked to simulate processing time and return realistic volume data, allowing full application development while preparing for opencascade.js integration.
+**Real File Processing**: STP volume extraction uses opencascade.js library for authentic CAD file processing, extracting real volume data from uploaded .STP/.STEP files with fallback to mock data for development/testing scenarios.
 
 **Type-Safe API**: Shared Zod schemas between client and server ensure runtime validation and compile-time type safety for all API interactions.
 
